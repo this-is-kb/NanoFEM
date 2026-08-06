@@ -43,7 +43,7 @@ from nanofem.physics.base import DeclaredTheory, Locality, TheoryDeclaration
 from nanofem.state.layout import StateLayout
 from nanofem.state.model_state import ModelState
 
-__version__ = "0.24.0"
+__version__ = "0.25.0"
 
 __all__ = [
     "BodyForce",

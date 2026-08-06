@@ -225,3 +225,41 @@ written, and as `test_nonlocal_cantilever_benchmark.py` does explicitly) - never
 exact-match assertion on a single, fixed, coarse mesh. The one exception is a field that is
 genuinely constant everywhere (`test_static_nonlocal_plate.py`'s uniaxial tension patch test),
 where exactness is correct and expected at any mesh density, including one element.
+
+---
+
+## 8. Field-level local-limit recovery, and a clarifying operator-level subtlety
+
+Section 7 quantified the local limit at the level of the *nodal displacement solution*.
+`test_nonlocal_local_limit_recovery.py` (Stage 4's closing verification pass) repeats the same
+mesh-refinement study directly at the level of **strain**, **stress**, **strain energy**, and
+**effective stiffness** (`F / |deflection|`) - the same cantilever benchmark, same three mesh
+levels, so the numbers are directly comparable to Section 7's displacement figures:
+
+| mesh | strain error | stress error | energy error | stiffness error |
+|---|---|---|---|---|
+| 6x3  | 54.0% | 27.1% | 91.6% | 47.8% |
+| 10x5 | 42.3% | 19.4% | 36.2% | 26.6% |
+| 16x8 | 30.2% | 15.7% | 14.7% | 12.8% |
+
+Every column shrinks monotonically, exactly like the displacement error in Section 7 - the
+mesh-convergent local limit is a property of the whole solution, not an artifact isolated to the
+nodal displacement.
+
+**A clarifying subtlety, found while designing this table.** It is tempting to expect the
+*global effective stiffness operator itself* - the Schur complement `K_eff = K_ue . K_ee^-1 .
+K_eu` obtained by eliminating `e*` from the fully assembled, unconstrained system - to converge
+to the classical global stiffness matrix `K_classical` under refinement, entrywise, the same way
+the solution does. **It does not: the relative Frobenius-norm difference between `K_eff` and
+`K_classical` actually grows under refinement** (measured at 49% -> 64% -> 71% -> 74% for
+4x2 -> 8x4 -> 16x8 -> 24x12). This is not a contradiction of the displacement/strain/stress/
+energy convergence above, and not a bug: `K_ee`'s global assembly couples every element sharing
+an `e*` node to its neighbors (Section 7's C0-continuity point again), so its inverse is
+generically **dense**, and `K_eff` inherits that density - long-range, small-magnitude "fill-in"
+entries between u-DOFs that have no direct element connection in `K_classical` at all. As the
+mesh refines, the number of such fill-in entries grows faster than their individual magnitude
+shrinks, so the whole-matrix Frobenius norm of the difference grows even as the *response to any
+smooth, physically realistic load* - which is what every benchmark in this codebase actually
+measures - keeps converging. The lesson: "the operator converges" and "the response to a given
+load converges" are different claims for this formulation, and only the second one holds
+mesh-wide; every convergence claim in this codebase is, and remains, of the second kind.

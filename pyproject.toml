@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nanofem"  # TODO(ADR-000): confirm name availability on PyPI before first release
-version = "0.24.0"
+version = "0.25.0"
 description = "Research-grade finite element framework for nanoscale mechanics (Eringen nonlocal elasticity, strain gradient, auxetic metamaterials)."
 readme = "README.md"
 requires-python = ">=3.11"

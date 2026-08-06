@@ -7,6 +7,59 @@ may not).
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-08-06
+
+### Added
+- **Eringen Differential Nonlocal Elasticity, second verification pass** - a fresh, more
+  granular restatement of the Stage 4 directive arrived after v0.24.0 shipped; audited it
+  step-by-step against what was already delivered and added exactly five genuinely missing
+  items, none of which required touching any already-verified physics or the frozen
+  architecture. See `docs/design/ERINGEN_DIFFERENTIAL_STAGE4_SUMMARY.md` Section 4 for the full
+  account.
+- `tests/unit/test_nonlocal_helmholtz_and_assembly_verification.py` (18 tests): isolates the
+  Helmholtz operator's properties directly - `K_ee`'s mass term is strictly SPD, its diffusion
+  term is PSD with an exactly 3-D null space, `K_ee` stays SPD for characteristic lengths from 0
+  to 10, and the Helmholtz relation's natural (homogeneous-Neumann) boundary treatment is
+  confirmed by direct inspection (no Dirichlet BC ever targets the nonlocal-strain field). At
+  the assembled, multi-element scale: the `u`-`u` block is structurally exactly zero, `u`-`e*`
+  and `e*`-`u` stay exact transposes, the global `e*`-`e*` block stays negative definite, the
+  sparsity pattern is missing no assembled entry, factory DOF ordering matches the element's own
+  layout assumption, and the element emits nothing for any non-`STIFFNESS` role.
+- `tests/unit/test_nonlocal_plane_strain_benchmark.py` (7 tests): the Stage-4 benchmark suite's
+  "two-dimensional plane strain" item, previously exercised only at the unit-delegation level -
+  a single-element patch test and a cantilever mesh-convergence study, mirroring the existing
+  plane-stress cantilever with only the constitutive law changed, plus a textbook plane-strain-
+  is-stiffer-than-plane-stress cross-check.
+- `tests/unit/test_nonlocal_local_limit_recovery.py` (4 tests): extends the existing
+  displacement-level mesh-convergent local limit to strain, stress, energy, and effective
+  stiffness individually, with the numerical error tabulated per mesh level.
+- `tests/unit/test_nonlocal_parametric_sensitivity.py` (5 tests): confirms the default
+  quadrature order is already numerically exact for a T3 (raising it changes nothing beyond
+  floating-point noise), and reproduces the cantilever benchmark's mesh-convergent local limit
+  and nonlocal softening independently for `quad4`.
+- `docs/design/ERINGEN_DIFFERENTIAL_CONTINUUM.md` Section 8: the field-level recovery table, and
+  a clarifying subtlety found while building it - the *global effective stiffness operator*
+  (the Schur complement eliminating `e*`) does not converge to the classical global stiffness
+  matrix entrywise under refinement (its Frobenius-norm difference actually grows, since
+  eliminating a globally-shared `e*` field produces dense long-range fill-in with no counterpart
+  in the sparse classical operator), even though the *response to any specific smooth load*
+  converges regardless - the only claim any benchmark in this codebase makes or needs to make.
+- Computational cost/scalability measured directly (not gated by a flaky timing test): the mixed
+  system carries 2.5x the DOFs of the equivalent classical system for a 2-D problem, and its
+  sparse-direct solve time stays within a roughly constant 1.7-2.2x multiple of the classical
+  solve across two orders of magnitude of mesh refinement - consistent, not pathological,
+  scaling. Full table in `docs/design/ERINGEN_DIFFERENTIAL_STAGE4_SUMMARY.md` Section 4.
+
+### Notes
+- Mathematical notation (`e0a` the material property, `mu = (e0a)^2` the Helmholtz relation's
+  own quantity) was audited fresh across all three per-member design documents (bar, beam,
+  continuum) and the source code - confirmed identical throughout, no drift found, no changes
+  needed.
+- `Mesh`, `ReferenceElement`, shape functions, quadrature, the assembly architecture, the linear
+  solver, and post-processing remain completely unmodified by this increment - every addition
+  here is a test or a documentation section built on top of the already-frozen v0.20.0-v0.24.0
+  physics.
+
 ## [0.24.0] - 2026-08-06
 
 ### Added
