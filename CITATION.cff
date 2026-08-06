@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use NanoFEM in your research, please cite it."
+title: "NanoFEM"
+version: "0.0.1"
+date-released: "2026-07-15"
+authors:
+  - name: "The NanoFEM Developers"
+license: MIT
+abstract: >
+  Research-grade finite element framework for nanoscale mechanics:
+  Eringen nonlocal elasticity, strain-gradient and couple-stress theories,
+  surface elasticity, and auxetic metamaterials. Phase 0: architecture only.

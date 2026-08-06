@@ -1,0 +1,16 @@
+name: research-nightly
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # TODO(phase-1+): execute research/validation and research/papers
+      # manifests; open an issue on drift (SDS Section 14, ADR-012).
+      - name: Placeholder
+        run: echo "reproducibility manifests arrive with the first validation cases"

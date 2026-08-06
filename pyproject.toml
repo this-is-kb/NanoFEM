@@ -1,0 +1,188 @@
+# NanoFEM build, metadata, and tooling configuration (single source of truth).
+# setup.cfg and requirements.txt exist for legacy tooling and mirror this file.
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nanofem"  # TODO(ADR-000): confirm name availability on PyPI before first release
+version = "0.24.0"
+description = "Research-grade finite element framework for nanoscale mechanics (Eringen nonlocal elasticity, strain gradient, auxetic metamaterials)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "The NanoFEM Developers" }]
+keywords = ["finite-elements", "nonlocal-elasticity", "nanomechanics", "computational-mechanics"]
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Typing :: Typed",
+]
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "matplotlib>=3.8",
+    "meshio>=5.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=24.0",
+    "ruff>=0.5",
+    "isort>=5.13",
+    "mypy>=1.10",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "coverage>=7.4",
+    "pre-commit>=3.7",
+    "import-linter>=2.0",
+]
+symbolic = ["sympy>=1.12"]
+meshing = ["gmsh>=4.12"]
+viz = ["pyvista>=0.43"]
+
+[project.urls]
+Homepage = "https://example.invalid/nanofem"  # TODO(phase-0.5): real repository URL
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+nanofem = ["py.typed"]
+
+# ----------------------------------------------------------------------------
+# Tool ownership (see docs/dev/notes.md): black formats, isort orders imports,
+# ruff lints, mypy types, import-linter enforces the architecture.
+# ----------------------------------------------------------------------------
+
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["nanofem"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP"]
+ignore = []
+
+[tool.mypy]
+strict = true
+files = ["src/nanofem", "tests"]
+python_version = "3.12"
+warn_unreachable = true
+pretty = true
+
+# scipy ships no py.typed marker (as of the pinned 1.18.0); its sparse-matrix
+# API is otherwise fully covered by our own explicit annotations.
+[[tool.mypy.overrides]]
+module = "scipy.*"
+ignore_missing_imports = true
+
+# meshio ships no py.typed marker (as of the pinned 5.3.5); its Mesh/read/write
+# API is otherwise fully covered by our own explicit annotations.
+[[tool.mypy.overrides]]
+module = "meshio.*"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["nanofem"]
+# TODO(phase-1): activate fail_under = 90 on the physics core once numerics land.
+
+[tool.coverage.report]
+show_missing = true
+
+# ----------------------------------------------------------------------------
+# Architecture enforcement: the phase-0 proof that the SDS layering is
+# internally consistent. A violated contract is a CI failure.
+# ----------------------------------------------------------------------------
+
+[tool.importlinter]
+root_package = "nanofem"
+
+[[tool.importlinter.contracts]]
+name = "Layered architecture (ARCHITECTURE v2 Section 4; higher may import lower)"
+type = "layers"
+layers = [
+    "postprocess",
+    "analysis",
+    "elements",
+    "constraints",
+    "core",
+    "physics",
+    "state",
+    "kernels",
+    "materials",
+    "geometry",
+    "mesh",
+    "numerics",
+    "io",
+    "utils",
+]
+containers = ["nanofem"]
+exhaustive = false
+
+[[tool.importlinter.contracts]]
+name = "R2: physics is discretization-free"
+type = "forbidden"
+source_modules = ["nanofem.physics"]
+forbidden_modules = [
+    "nanofem.numerics.interpolation",
+    "nanofem.numerics.quadrature",
+    "nanofem.numerics.mapping",
+]
+
+[[tool.importlinter.contracts]]
+name = "R3: io is a thin edge (only mesh and postprocess may import it)"
+type = "forbidden"
+source_modules = [
+    "nanofem.core",
+    "nanofem.physics",
+    "nanofem.elements",
+    "nanofem.constraints",
+    "nanofem.analysis",
+    "nanofem.numerics",
+    "nanofem.state",
+    "nanofem.kernels",
+    "nanofem.materials",
+    "nanofem.geometry",
+    "nanofem.utils",
+]
+forbidden_modules = ["nanofem.io"]
+
+[[tool.importlinter.contracts]]
+name = "R3: symbolics is never imported by runtime code"
+type = "forbidden"
+source_modules = [
+    "nanofem.core",
+    "nanofem.mesh",
+    "nanofem.geometry",
+    "nanofem.materials",
+    "nanofem.physics",
+    "nanofem.kernels",
+    "nanofem.state",
+    "nanofem.elements",
+    "nanofem.constraints",
+    "nanofem.numerics",
+    "nanofem.analysis",
+    "nanofem.postprocess",
+    "nanofem.io",
+    "nanofem.utils",
+]
+forbidden_modules = ["nanofem.symbolics"]

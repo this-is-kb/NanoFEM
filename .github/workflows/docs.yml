@@ -1,0 +1,16 @@
+name: docs
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # TODO(phase-0.5): Sphinx + MyST build once the doc toolchain lands
+      # (ARCHITECTURE v1 Section 11). Placeholder keeps the workflow named
+      # and wired per the frozen repository layout.
+      - name: Placeholder
+        run: echo "docs build arrives with phase 0.5"

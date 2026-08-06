@@ -1,0 +1,19 @@
+# Template pyproject for a NanoFEM plugin distribution.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nanofem-example-plugin"
+version = "0.0.1"
+description = "Template: a third-party kernel registering with NanoFEM via entry points."
+requires-python = ">=3.11"
+dependencies = ["nanofem>=0.0.1"]
+
+# The registration mechanism (SDS Section 12): NanoFEM's Registry scans these
+# groups on import; your key becomes usable in model definitions immediately.
+[project.entry-points."nanofem.kernels"]
+"example.cone" = "nanofem_example_plugin.kernel:ExampleConeKernel"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,40 @@
+# Formatting is a machine's job (ARCHITECTURE v1 Section 12).
+# Tool ownership: black formats, isort orders imports, ruff lints, mypy types,
+# import-linter enforces the architecture. CI repeats all of these.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+
+  - repo: https://github.com/psf/black
+    rev: 24.8.0
+    hooks:
+      - id: black
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (strict)
+        entry: mypy
+        language: system
+        pass_filenames: false
+      - id: import-linter
+        name: import-linter (architecture contracts)
+        entry: lint-imports
+        language: system
+        pass_filenames: false
