@@ -4,7 +4,7 @@ title: "NanoFEM"
 version: "0.0.1"
 date-released: "2026-07-15"
 authors:
-  - name: "The NanoFEM Developers"
+  - name: "Kaustav Moni Bora"
 license: MIT
 abstract: >
   Research-grade finite element framework for nanoscale mechanics:
