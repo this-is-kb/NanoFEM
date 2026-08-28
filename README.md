@@ -11,6 +11,12 @@ metamaterials — in pure Python (numpy/scipy core).
 > architecture and Software Design Specification (SDS) are internally
 > consistent and implementable before any numerics land.
 
+## Getting started
+
+New to NanoFEM? [`docs/source/tutorials/getting_started.md`](docs/source/tutorials/getting_started.md)
+walks through installation and one complete worked example (a bar under an end load), aimed at
+first-time users rather than contributors.
+
 ## Design documents
 
 The architecture is frozen and lives in this repository:
