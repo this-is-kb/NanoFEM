@@ -268,10 +268,17 @@ def _build_nonlocal_continuum_elements(
     theory: EringenDifferentialTheory,
     material: Material,
     dof_handler: DofHandler,
-) -> list[NonlocalContinuumElement]:
+) -> list[Element]:
+    """One ``NonlocalContinuumElement`` per cell; with a discontinuous e*, also one
+    ``NonlocalInteriorPenaltyFacet`` per interior facet of the domain."""
     # Deferred imports: see the module docstring for why (numerics.quadrature independence).
+    from nanofem.elements.continuum.interior_penalty import (
+        FacetSide,
+        NonlocalInteriorPenaltyFacet,
+    )
     from nanofem.elements.continuum.nonlocal_continuum import NonlocalContinuumElement
     from nanofem.geometry.plane import PlaneGeometry
+    from nanofem.numerics.operators.base import Continuity
     from nanofem.numerics.reference.registry import cell_type_of_name
     from nanofem.physics.elasticity.eringen_differential import (
         NONLOCAL_STRAIN_FIELD,
@@ -305,7 +312,9 @@ def _build_nonlocal_continuum_elements(
         )
 
     e_components = voigt_component_names(theory.dim)
-    elements: list[NonlocalContinuumElement] = []
+    broken = theory.nonlocal_strain_continuity is Continuity.DISCONTINUOUS
+    elements: list[Element] = []
+    sides: dict[int, tuple[FacetSide, NonlocalContinuumElement]] = {}
     for cell_id in mesh.cells_in_region(domain.region):
         cell = mesh.cell(cell_id)
         order = _CONTINUUM_CELL_TYPES.get(cell.cell_type)
@@ -319,23 +328,74 @@ def _build_nonlocal_continuum_elements(
         coordinates = np.array([mesh.node(n).coordinates for n in node_ids])
         global_dofs_u = [dof_handler.global_dof(n, "u", c) for n in node_ids for c in ("x", "y")]
         global_dofs_e = [
-            dof_handler.global_dof(n, NONLOCAL_STRAIN_FIELD, c)
+            (
+                dof_handler.cell_dof(cell_id, n, NONLOCAL_STRAIN_FIELD, c)
+                if broken
+                else dof_handler.global_dof(n, NONLOCAL_STRAIN_FIELD, c)
+            )
             for n in node_ids
             for c in e_components
         ]
         global_dofs: NDArray[np.int64] = np.array(global_dofs_u + global_dofs_e, dtype=np.int64)
-        elements.append(
-            NonlocalContinuumElement(
+        element = NonlocalContinuumElement(
+            cell_id=cell_id,
+            node_ids=node_ids,
+            coordinates=coordinates,
+            global_dofs=global_dofs,
+            cell_type=cell_type_of_name(cell.cell_type),
+            interpolation_order=order,
+            theory=theory,
+            constitutive=constitutive,
+            material=material,
+            section_measure=geometry.thickness,
+        )
+        elements.append(element)
+        if broken:
+            side = FacetSide(
                 cell_id=cell_id,
+                cell_type=cell_type_of_name(cell.cell_type),
                 node_ids=node_ids,
                 coordinates=coordinates,
-                global_dofs=global_dofs,
-                cell_type=cell_type_of_name(cell.cell_type),
-                interpolation_order=order,
-                theory=theory,
-                constitutive=constitutive,
-                material=material,
+                e_dofs=np.array(global_dofs_e, dtype=np.int64),
+                measure=element.measure() / geometry.thickness,
+            )
+            sides[cell_id] = (side, element)
+
+    for facet_nodes, plus_id, minus_id in _interior_facets(mesh, tuple(sides)):
+        plus, element = sides[plus_id]
+        elements.append(
+            NonlocalInteriorPenaltyFacet(
+                facet_nodes=facet_nodes,
+                plus=plus,
+                minus=sides[minus_id][0],
+                constitutive_matrix=element.constitutive_matrix,
+                helmholtz_coefficient=element.helmholtz_coefficient,
                 section_measure=geometry.thickness,
             )
         )
     return elements
+
+
+def _interior_facets(
+    mesh: Mesh, cell_ids: tuple[int, ...]
+) -> list[tuple[tuple[int, int], int, int]]:
+    """``(facet nodes, plus cell, minus cell)`` for every facet shared by two of ``cell_ids``.
+
+    Deterministic: facets appear in the order their first owner is visited, with that owner as
+    the '+' side. A facet on the boundary of the given cell set has one owner and is skipped,
+    which is exactly the natural (no-term) boundary condition e* carries.
+    """
+    from nanofem.numerics.reference.registry import reference_element_for_name
+
+    owners: dict[tuple[int, ...], list[tuple[int, tuple[int, ...]]]] = {}
+    for cell_id in cell_ids:
+        n_facets = reference_element_for_name(mesh.cell(cell_id).cell_type).num_facets
+        for local in range(n_facets):
+            nodes = mesh.facet_node_ids(cell_id, local)
+            owners.setdefault(tuple(sorted(nodes)), []).append((cell_id, nodes))
+    facets: list[tuple[tuple[int, int], int, int]] = []
+    for pairs in owners.values():
+        if len(pairs) == 2:
+            (plus, nodes), (minus, _) = pairs
+            facets.append(((int(nodes[0]), int(nodes[1])), plus, minus))
+    return facets

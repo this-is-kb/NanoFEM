@@ -24,8 +24,17 @@ from enum import Enum, unique
 
 @unique
 class Continuity(Enum):
-    """Inter-element continuity classes of interpolation families (SDS Section 4)."""
+    """Inter-element continuity classes of interpolation families (SDS Section 4).
 
+    ``DISCONTINUOUS`` is the broken (L2-conforming) class: no continuity across cells at all.
+    Its degrees of freedom are owned by cells rather than shared through nodes, and whatever
+    coupling neighbouring cells need is supplied weakly by FACET contributions (interior-penalty
+    terms). ``derived_continuity`` never returns it: operators state what a *conforming*
+    discretization needs, and choosing a nonconforming one is an explicit declaration.
+    ``value`` orders the classes by strength, which is how requirements are merged.
+    """
+
+    DISCONTINUOUS = -1
     C0 = 0
     C1 = 1
 
