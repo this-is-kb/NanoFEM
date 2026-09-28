@@ -47,6 +47,16 @@ projection of the local strain onto the ``e*`` shape-function space); for a line
 whose strain field is itself constant, that projection is *exact*, so ``mu=0`` reproduces the
 classical stiffness to floating-point precision, not just in a limiting sense - verified
 numerically before this module was written.
+
+**Continuous vs discontinuous nonlocal strain.** The statement above holds per element. On a
+mesh, a *continuous* e* space cannot represent the discontinuous ``eps(u_h)``, so with equal-order
+continuous interpolation the local limit is only mesh-convergent, and the discrete inf-sup
+constant of the (u, e*) pair decays as O(h). Declaring ``nonlocal_strain_continuity=
+Continuity.DISCONTINUOUS`` gives each cell its own e*: the cell space then contains
+``eps(u_h)|_T``, the ``mu=0`` reduced operator equals the classical stiffness on any mesh, and
+the Helmholtz term's inter-cell regularity is imposed weakly by interior-penalty facet terms
+(``elements/continuum/interior_penalty.py``). This is a discretization choice the theory has to
+declare, because DOF ownership (node vs cell) follows from a field's continuity class.
 """
 
 from __future__ import annotations
@@ -89,23 +99,38 @@ class EringenDifferentialTheory(Theory):
     """Eringen differential nonlocal elasticity kinematics: displacement + nonlocal strain.
 
     Two fields: ``u`` (``dim`` components, the classical displacement) and ``e_star`` (the
-    nonlocal strain, ``VOIGT_LENGTH[dim]`` components). Both use ``Continuity.C0`` - the
-    Helmholtz relation's own weak form needs only first derivatives of ``e_star``, exactly
-    like the classical `symmetric_gradient` needs only first derivatives of ``u``.
+    nonlocal strain, ``VOIGT_LENGTH[dim]`` components). ``u`` uses ``Continuity.C0`` - the
+    classical ``symmetric_gradient`` needs only first derivatives. ``e_star`` is ``C0`` by
+    default (the Helmholtz weak form also needs only first derivatives) or, when
+    ``nonlocal_strain_continuity=Continuity.DISCONTINUOUS``, cell-owned with interior-penalty
+    facet coupling (see the module docstring for why that choice exists).
     """
 
-    def __init__(self, dim: int = 2) -> None:
+    def __init__(
+        self, dim: int = 2, nonlocal_strain_continuity: Continuity = Continuity.C0
+    ) -> None:
         if dim != 2:
             raise PhysicsError(
                 f"EringenDifferentialTheory currently supports dim=2 only (no 3-D continuum "
                 f"element exists yet to pair it with); dim={dim} is not yet usable"
             )
+        if nonlocal_strain_continuity not in (Continuity.C0, Continuity.DISCONTINUOUS):
+            raise PhysicsError(
+                f"nonlocal_strain_continuity must be Continuity.C0 or Continuity.DISCONTINUOUS, "
+                f"got {nonlocal_strain_continuity!r}"
+            )
         self._dim = dim
+        self._strain_continuity = nonlocal_strain_continuity
 
     @property
     def dim(self) -> int:
         """The spatial dimension this instance was constructed with."""
         return self._dim
+
+    @property
+    def nonlocal_strain_continuity(self) -> Continuity:
+        """``C0`` (shared nodal e*) or ``DISCONTINUOUS`` (cell-owned e*, facet-coupled)."""
+        return self._strain_continuity
 
     def fields(self) -> tuple[tuple[str, int], ...]:
         """``u`` with ``dim`` components, ``e_star`` with ``VOIGT_LENGTH[dim]`` components."""
@@ -120,9 +145,14 @@ class EringenDifferentialTheory(Theory):
         return {NONLOCAL_STRAIN_FIELD: voigt_component_names(self._dim)}
 
     def continuity_requirements(self) -> dict[str, Continuity]:
-        """Both fields need only ``Continuity.C0`` (SDS Section 8 rule)."""
+        """``u`` from the SDS Section 8 rule (``C0``); ``e_star`` as declared at construction."""
         continuity = derived_continuity(self.operators_used())
-        return {DISPLACEMENT_FIELD: continuity, NONLOCAL_STRAIN_FIELD: continuity}
+        strain = (
+            Continuity.DISCONTINUOUS
+            if self._strain_continuity is Continuity.DISCONTINUOUS
+            else continuity
+        )
+        return {DISPLACEMENT_FIELD: continuity, NONLOCAL_STRAIN_FIELD: strain}
 
     def required_properties(self) -> tuple[str, ...]:
         """``E``, ``nu`` (the local law) and ``e0a`` (``mu = (e0*a)^2``)."""
@@ -143,7 +173,9 @@ class EringenDifferentialTheory(Theory):
         return (OperatorRole.STIFFNESS, OperatorRole.FORCE)
 
     def contribution_kinds(self) -> tuple[ContributionKind, ...]:
-        """Local nonlocal-elasticity is cell-only."""
+        """Cell-only with continuous e*; cell + interior-facet with discontinuous e*."""
+        if self._strain_continuity is Continuity.DISCONTINUOUS:
+            return (ContributionKind.CELL, ContributionKind.FACET)
         return (ContributionKind.CELL,)
 
     def locality(self) -> Locality:

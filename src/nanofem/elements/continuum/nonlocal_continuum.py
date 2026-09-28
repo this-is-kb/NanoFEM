@@ -28,6 +28,11 @@ serve Strain Gradient or similar theories later, without redesigning this class 
 backbone" design philosophy. What *is* Eringen-specific is confined to
 ``physics/elasticity/eringen_differential.py``.
 
+Discontinuous e*: this class is used unchanged. Its cell integrals are the same whether e* is
+shared through nodes or owned by the cell; only the e* entries of ``global_dofs`` differ (the
+factory fills them from ``DofHandler.cell_dof``), and neighbouring cells are coupled by
+``NonlocalInteriorPenaltyFacet`` elements instead of by shared DOFs.
+
 DOF layout: ``global_dofs`` is the concatenation of ``u``'s node-major-then-component block
 followed by ``e*``'s node-major-then-component block (not a single per-node SDS C-2
 interleaving of both fields) - a deliberate, documented simplification, since
@@ -201,6 +206,16 @@ class NonlocalContinuumElement(Element):
     def local_stiffness(self) -> NDArray[np.float64]:
         """The full ``(n_dof_u + n_dof_e)``-square coupled block stiffness matrix."""
         return self._k_e
+
+    @property
+    def constitutive_matrix(self) -> NDArray[np.float64]:
+        """The local law's tangent ``D`` (constant for a linear elastic law), as a copy."""
+        return np.array(self._d_matrix, dtype=np.float64)
+
+    @property
+    def helmholtz_coefficient(self) -> float:
+        """``mu = (e0 a)^2``, the coefficient of the Helmholtz gradient term."""
+        return self._mu
 
     def quadrature_point_response(
         self, local_displacement: NDArray[np.float64]
